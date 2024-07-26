@@ -37,3 +37,5 @@ embedded-hal = "1.0.0"
 strip = false   # symbols are not flashed to the microcontroller, so don't strip them.
 lto = true
 opt-level = "s" # Optimize for size.
+# opt-level = "z"  # Optimize for size.
+codegen-units = 1
