@@ -2,15 +2,15 @@
 #![no_main]
 #![feature(type_alias_impl_trait)]
 
-use ch32_hal::timer::complementary_pwm::ComplementaryPwmPin;
 use ch32_hal::{self as hal};
 // use ch32_hal::println;
 use hal::adc;
 use hal::delay::Delay;
 // core::f64::consts::E
 use hal::time::Hertz;
-use hal::timer::low_level::{OutputCompareMode, Timer, OutputPolarity, CountingMode};
+use hal::timer::low_level::{OutputCompareMode, Timer, CountingMode};
 use hal::timer::simple_pwm::PwmPin;
+use ch32_hal::timer::complementary_pwm::ComplementaryPwmPin;
 
 mod util;
 
@@ -43,12 +43,14 @@ fn main() -> ! {
     const BUFFER_SIZE: usize = 40;
     #[allow(dead_code)]
     const MIN_DIFF: i32 = 16 * BUFFER_SIZE as i32;
+
     let mut queue: util::Queue<u16, BUFFER_SIZE> = util::Queue::new();
     while let Ok(_) = queue.push(0){};
     let mut sum: u16 = 0;
     #[allow(unused_assignments)]
     let mut deployed_sum: u16 = 0;
 
+    let mut state = true;
     loop {
         sum -= queue.pop().expect("Oops~");
         let sample = analog_input.convert(&mut p.PC4, hal::adc::SampleTime::CYCLES73);
@@ -56,21 +58,37 @@ fn main() -> ! {
         let _ = queue.push(sample);
         // println!("{}", sum);
 
-        // if util::abs(deployed_sum as i32 - sum as i32) >= MIN_DIFF {
-        if true {
-            deployed_sum = sum as u16;
+        deployed_sum = sum as u16;
 
-            let average: f64 = deployed_sum as f64/(BUFFER_SIZE as f64);
+        let average: f64 = deployed_sum as f64/(BUFFER_SIZE as f64);
 
-            // Attempt 1
+        // println!("{}", average as u32);
+        if average <= 6. && state {
+            timer.enable_channel(ch, false);
+            timer.enable_complementary_channel(ch, false);
+            state = false;
+        }
+        if state {
+            timer.enable_channel(ch, true);
+            timer.enable_complementary_channel(ch, true);
+
+            // Attempt 1 - exp with midi in mind
             // let n: u32 = (deployed_sum/(13*BUFFER_SIZE as u16) + 40).into();
-            // let f: u32 = (440.0*util::exp(((n as f64)-69.0)*0.693147181/13.0)) as u32;
+            // let mut f: u32 = (440.0*util::exp(((n as f64)-69.0)*0.693147181/13.0)) as u32;
             
-            // Attempt 2
-            // let f = (deployed_sum as u32 *7 / BUFFER_SIZE as u32);
+            // Attempt 2 - linear
+            // let mut f = (deployed_sum as u32 *7 / BUFFER_SIZE as u32);
 
-            // Attempt 3
-            let f = util::exp(0.00865*(average)) as u32;
+            // Attempt 3 - exp
+            // let mut f = util::exp(0.009*(average - 6.)) as u32;
+
+            // Attempt 4 - exp + sqrt
+            let mut f = (util::exp(0.0084*(average - 6.)) + 0.3*util::sqrt(average-3.)) as u32;
+
+
+            if f == 0 {
+                f = 1;
+            }
 
             // calculate new values
             let pclk_ticks_per_timer_period = timer_f / f;
@@ -86,6 +104,9 @@ fn main() -> ! {
             // set max duty cycle
             let max_duty = timer.get_max_compare_value() + 1;
             timer.set_compare_value(ch, max_duty / 2);
+        }
+        else if average > 25. {
+            state = true;
         }
         
         Delay.delay_ms(1);

@@ -61,6 +61,7 @@ pub fn exp(x: f64) -> f64 {
     sum
 }
 
+
 #[allow(dead_code)]
 pub fn abs(a: i32) -> i32{
     if a < 0 {
@@ -68,6 +69,41 @@ pub fn abs(a: i32) -> i32{
     }
     else {
         a
+    }
+}
+
+pub fn sqrt(x: f64) -> f64 {
+    if x == 0.0 {
+        return 0.0;
+    }
+
+    let mut guess = x;
+    const EPSILON: f64 = 1e-5;
+    let mut prev_guess: f64;
+
+    loop {
+        prev_guess = guess;
+        guess = (guess + x / guess) / 2.0;
+
+        // Check for convergence
+        let delta = prev_guess - guess;
+        if delta >= 0. {
+            if delta < EPSILON {
+                break;
+            }
+        }
+        else {
+            if delta > -EPSILON {
+                break;
+            }
+        }
+    }
+
+    if guess >= 0. {
+        guess
+    }
+    else {
+        -guess
     }
 }
 
